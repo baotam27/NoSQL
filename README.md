@@ -19,13 +19,15 @@
 
 ## Yêu cầu môi trường và Cài đặt lần đầu (Prerequisites)
 
+*(Xem hướng dẫn chi tiết từng bước cho máy mới tại tệp `HUONG_DAN_CAI_DAT_LAN_DAU.md`).*
+
 Nếu chạy trên máy mới chưa cài môi trường, thực hiện một lần duy nhất các bước sau:
 
-1. Cài đặt **Python 3.10+** và **Google Cloud SDK (`gcloud`)**.
-2. Cài thêm thành phần `cbt` và `bigtable` emulator cho Google Cloud SDK:
+1. Cài đặt **Python 3.10+** (tick chọn `Add python.exe to PATH`) và **Google Cloud SDK (`gcloud`)**.
+2. Cài thêm 3 thành phần `beta`, `cbt` và `bigtable` emulator cho Google Cloud SDK:
 
 ```powershell
-gcloud components install cbt bigtable
+gcloud components install beta cbt bigtable
 ```
 
 3. Tạo môi trường ảo Python và cài thư viện từ `requirements.txt`:
