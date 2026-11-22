@@ -377,7 +377,6 @@ def get_weighted_recommendations(user_id: str, limit: int = 4) -> Dict[str, Any]
     events = recent["events"]
 
     category_scores: Dict[str, float] = {}
-    product_interaction_counts: Dict[str, int] = {}
     recently_viewed_ids: List[str] = []
     latest_product_id = ""
 
@@ -404,10 +403,8 @@ def get_weighted_recommendations(user_id: str, limit: int = 4) -> Dict[str, Any]
         category_scores[category] = round(
             category_scores.get(category, 0.0) + weight * recency_factor, 2
         )
-        if pid:
-            product_interaction_counts[pid] = product_interaction_counts.get(pid, 0) + 1
-            if not latest_product_id:
-                latest_product_id = pid
+        if pid and not latest_product_id:
+            latest_product_id = pid
 
     if category_scores:
         sorted_cats = sorted(category_scores.items(), key=lambda x: x[1], reverse=True)

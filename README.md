@@ -14,7 +14,6 @@
 - `controllers/`: Tầng Controller (Flask Blueprints) gồm `shop_controller.py`, `analytics_controller.py` và `simulator_controller.py`.
 - `templates/` và `static/`: Tầng View (`base.html`, `shop.html`, `analytics.html`) cùng CSS/JS tách riêng.
 - `app.py`: Điểm khởi chạy Flask Application Factory.
-- `bigtable_service.py`: Lớp facade giữ tương thích các hàm cũ và ủy quyền về `models/`.
 - `load_test.py`: Kiểm thử tải đa luồng hỗ trợ `--mode hotspot`, `--mode optimal`, `--mode batch` và `--mode read-compare`.
 
 ## Yêu cầu môi trường và Cài đặt lần đầu (Prerequisites)
