@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}TechZone E-Commerce và Google Cloud Bigtable Clickstream{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-group">
+      <div class="brand-logo">
+        <div class="logo-icon">BT</div>
+        <div class="brand">
+          <h1>TechZone E-Commerce và Bigtable Clickstream</h1>
+          <span>Project: {{ connection.project_id }} | Instance: {{ connection.instance_id }} | Tables: {{ connection.table_id }}, {{ connection.metrics_table_id }}</span>
+        </div>
+      </div>
+      <nav class="nav-links" aria-label="Điều hướng chính">
+        <a href="{{ url_for('shop.shop_page') }}" class="nav-link {% if active_page == 'shop' %}active{% endif %}">Cửa hàng Cá nhân hóa</a>
+        <a href="{{ url_for('analytics.analytics_page') }}" class="nav-link {% if active_page == 'analytics' %}active{% endif %}">Quản trị và Bigtable Console</a>
+      </nav>
+    </div>
+
+    <div class="controls-bar">
+      <div class="conn-pill {% if error_message %}error{% endif %}">
+        <span class="conn-dot"></span>
+        <span>{% if error_message %}Mất kết nối Bigtable{% else %}{{ connection.mode }} ({{ connection.endpoint }}){% endif %}</span>
+      </div>
+      {% block header_controls %}{% endblock %}
+    </div>
+  </header>
+
+  {% if error_message %}
+  <div class="alert-banner" id="errorBanner">
+    <strong>Cảnh báo kết nối Bigtable:</strong> {{ error_message }}
+  </div>
+  {% else %}
+  <div class="alert-banner" id="errorBanner" style="display:none;"></div>
+  {% endif %}
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <div class="toast" id="toast"></div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

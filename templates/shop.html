@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+
+{% block header_controls %}
+<div class="user-switcher" aria-label="Chuyển đổi User ID">
+  {% for u in users %}
+  <button
+    type="button"
+    class="user-btn {% if u.user_id == selected_user %}active{% endif %}"
+    data-user="{{ u.user_id }}"
+    onclick="switchUser('{{ u.user_id }}')"
+    title="{{ u.name }} ({{ u.segment }}) - Prefix: {{ u.reversed_prefix }}#{{ u.user_id }}#"
+  >
+    {{ u.name }} ({{ u.user_id }})
+  </button>
+  {% endfor %}
+</div>
+
+<select id="regionSelect" class="region-select" title="Khu vực IP mô phỏng">
+  <option value="VN-HCM" selected>VN-HCM</option>
+  <option value="VN-HN">VN-HN</option>
+  <option value="VN-DN">VN-DN</option>
+</select>
+{% endblock %}
+
+{% block content %}
+<div class="pipeline-bar" id="pipelineBar">
+  <div class="pipeline-steps">
+    <span class="pipe-node" id="pipeNode1">1. Tương tác trên Shop</span>
+    <span class="pipe-arrow">→</span>
+    <span class="pipe-node" id="pipeNode2">2. Băm khóa Anti-Hotspot</span>
+    <span class="pipe-arrow">→</span>
+    <span class="pipe-node" id="pipeNode3">3. Ghi 3 Column Families và Counter</span>
+    <span class="pipe-arrow">→</span>
+    <span class="pipe-node" id="pipeNode4">4. Cá nhân hóa Banner và Gợi ý</span>
+  </div>
+  <div class="scenario-bar">
+    <span style="font-size:0.75rem; color:var(--muted); font-weight:600;">Kịch bản 1 chạm:</span>
+    <button type="button" class="scenario-btn" onclick="runDemoScenario('laptop')">Săn Laptop Pro</button>
+    <button type="button" class="scenario-btn" onclick="runDemoScenario('audio')">Đổi sang Âm thanh</button>
+    <button type="button" class="scenario-btn" onclick="runDemoScenario('phone')">Mua nhanh iPhone 16</button>
+    <button type="button" class="scenario-btn scenario-btn-danger" onclick="runDemoScenario('bot')">Mô phỏng Bot/Gian lận</button>
+  </div>
+</div>
+
+<div class="layout">
+  <section class="panel">
+    {% set banner = dashboard.recommendations.dynamic_banner %}
+    <div class="hero-banner {{ banner.theme }}" id="heroBanner">
+      <span class="hero-tag" id="heroTag">{{ banner.tag }}</span>
+      <h2 class="hero-title" id="heroTitle">{{ banner.title }}</h2>
+      <p class="hero-subtitle" id="heroSubtitle">{{ banner.subtitle }}</p>
+    </div>
+
+    <div class="persona-strip">
+      <div class="persona-info">
+        <div class="persona-avatar" id="personaAvatar">{{ dashboard.user_profile.avatar }}</div>
+        <div>
+          <div style="font-size:0.86rem; font-weight:700;">
+            <span id="personaName">{{ dashboard.user_profile.name }}</span>
+            <span class="mono" style="color:var(--primary);" id="personaUid">({{ selected_user }})</span>
+          </div>
+          <div style="font-size:0.75rem; color:var(--muted);" id="personaSegment">{{ dashboard.user_profile.segment }}</div>
+        </div>
+      </div>
+      <div class="score-pills" id="scorePills">
+        {% if dashboard.recommendations.category_scores %}
+          {% for cat, sc in dashboard.recommendations.category_scores.items() %}
+          <span class="score-pill {% if loop.first %}top{% endif %}">{{ cat }}: {{ sc }}đ</span>
+          {% endfor %}
+        {% else %}
+          <span class="score-pill">Chưa có điểm hành vi</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <form class="search-row" onsubmit="handleSearch(event)">
+      <input
+        type="text"
+        id="searchInput"
+        class="search-input"
+        placeholder="Tìm kiếm sản phẩm, thông số hoặc danh mục (MacBook, iPhone, Sony, Keychron)..."
+      />
+      <button type="submit" class="btn btn-primary">Tìm kiếm</button>
+      <button type="button" class="btn btn-outline" onclick="resetFilter()">Đặt lại</button>
+    </form>
+
+    <div class="quick-kw-bar">
+      <span>Từ khóa xu hướng:</span>
+      {% for kw in quick_keywords %}
+      <button type="button" class="kw-chip" onclick="quickSearch('{{ kw }}')">{{ kw }}</button>
+      {% endfor %}
+    </div>
+
+    <div class="category-tabs">
+      {% for cat in categories %}
+      <button
+        type="button"
+        class="cat-pill {% if loop.first %}active{% endif %}"
+        data-cat="{{ cat }}"
+        onclick="filterCategory('{{ cat }}', this)"
+      >
+        {{ cat }}
+      </button>
+      {% endfor %}
+    </div>
+
+    <div class="product-grid" id="productGrid">
+      {% for p in products %}
+      <article class="product-card" data-category="{{ p.category }}" data-name="{{ p.product_name|lower }}" data-specs="{{ p.specs|lower }}">
+        <div>
+          <div class="product-visual">
+            <div class="product-svg-wrap" style="background: {{ p.accent }};">
+              {% if p.icon_type == 'laptop' %}
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/></svg>
+              {% elif p.icon_type == 'phone' %}
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M12 18h.01"/></svg>
+              {% elif p.icon_type == 'keyboard' %}
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/></svg>
+              {% elif p.icon_type == 'mouse' %}
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 7v4"/></svg>
+              {% elif p.icon_type == 'headphone' %}
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+              {% else %}
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><circle cx="12" cy="14" r="4"/><path d="M12 6h.01"/></svg>
+              {% endif %}
+            </div>
+            <div style="text-align:right;">
+              <span class="discount-pill">-{{ p.discount_pct }}%</span>
+              <div class="rating-line" style="margin-top:4px;">★ {{ p.rating }} ({{ p.reviews_count }})</div>
+            </div>
+          </div>
+
+          <div class="product-meta">
+            <span class="cat-tag">{{ p.category }}</span>
+            <span class="badge-tag">{{ p.badge }}</span>
+          </div>
+          <h3 class="product-name">{{ p.product_name }}</h3>
+          <p class="product-specs">{{ p.specs }}</p>
+        </div>
+
+        <div>
+          <div class="price-row">
+            <span class="product-price">{{ "{:,.0f}".format(p.price).replace(",", ".") }} VNĐ</span>
+            <span class="product-old-price">{{ "{:,.0f}".format(p.old_price).replace(",", ".") }}đ</span>
+          </div>
+          <div class="card-actions">
+            <button type="button" class="btn btn-outline" onclick="viewProduct('{{ p.product_id }}')">Chi tiết</button>
+            <button type="button" class="btn btn-primary" onclick="addToCart('{{ p.product_id }}')">Thêm giỏ</button>
+            <button type="button" class="btn btn-success" onclick="buyNow('{{ p.product_id }}')">Mua ngay</button>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+
+    <div class="recent-viewed-strip">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong style="font-size:0.82rem;">Sản phẩm vừa tương tác (trích xuất trực tiếp từ Bigtable)</strong>
+        <span style="font-size:0.74rem; color:var(--muted);" id="analyzedCountLabel">{{ dashboard.recommendations.analyzed_events_count }} sự kiện gần nhất</span>
+      </div>
+      <div class="recent-chips" id="recentlyViewedList">
+        {% for rp in dashboard.recommendations.recently_viewed %}
+        <span class="recent-chip" onclick="viewProduct('{{ rp.product_id }}')">
+          <strong>{{ rp.product_name }}</strong>
+          <span style="color:var(--danger);">{{ "{:,.0f}".format(rp.price).replace(",", ".") }}đ</span>
+        </span>
+        {% else %}
+        <span style="font-size:0.78rem; color:var(--muted);">Chưa có sản phẩm vừa xem.</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="cart-box">
+      <div class="cart-header">
+        <strong>Giỏ hàng của <span id="cartUserLabel">{{ selected_user }}</span> (<span id="cartCount">0</span> sản phẩm)</strong>
+        <strong id="cartTotal" style="color: var(--danger); font-size:1rem;">0 VNĐ</strong>
+      </div>
+      <div class="cart-items" id="cartItems">
+        <span style="color: var(--muted);">Chưa có sản phẩm trong giỏ hàng.</span>
+      </div>
+      <button type="button" class="btn btn-success" style="width: 100%; padding:10px;" onclick="checkoutCart()">Thanh toán đơn hàng và ghi nhận Purchase</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Nhật ký Clickstream thời gian thực từ Bigtable</h2>
+        <div class="panel-subtitle" id="scanMetaInfo">{{ dashboard.recent.scan_mode }} | Bộ lọc: {{ dashboard.recent.filter_applied }}</div>
+      </div>
+      <button type="button" class="btn btn-outline" onclick="refreshClickstream()">Làm mới</button>
+    </div>
+
+    <div class="filter-toolbar">
+      <select id="rangeFilter" class="filter-select" onchange="refreshClickstream()" title="Time-Range Scan theo reverse_timestamp">
+        <option value="all" selected>Toàn bộ thời gian (Prefix Scan)</option>
+        <option value="5">5 phút gần nhất (Time-Range Scan)</option>
+        <option value="15">15 phút gần nhất (Time-Range Scan)</option>
+        <option value="60">60 phút gần nhất (Time-Range Scan)</option>
+      </select>
+
+      <select id="eventTypeFilter" class="filter-select" onchange="refreshClickstream()" title="Server-side ConditionalRowFilter">
+        <option value="" selected>Tất cả hành vi</option>
+        <option value="view_product">Chỉ view_product</option>
+        <option value="search_keyword">Chỉ search_keyword</option>
+        <option value="add_to_cart">Chỉ add_to_cart</option>
+        <option value="purchase_success">Chỉ purchase_success</option>
+      </select>
+
+      <select id="familyFilter" class="filter-select" onchange="refreshClickstream()" title="Server-side FamilyNameRegexFilter">
+        <option value="" selected>Đủ 3 Column Families</option>
+        <option value="cf_event,cf_product">Chỉ cf_event và cf_product</option>
+        <option value="cf_event">Chỉ cf_event</option>
+      </select>
+    </div>
+
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Prefix Scan hiện tại</div>
+        <div class="metric-value mono" id="metricPrefix">{{ dashboard.recent.prefix }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Độ trễ truy vấn (Read)</div>
+        <div class="metric-value" id="metricReadLatency">{{ dashboard.recent.latency_ms }} ms</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Độ trễ ghi gần nhất (Write)</div>
+        <div class="metric-value" id="metricWriteLatency">-- ms</div>
+      </div>
+    </div>
+
+    {% set fraud = dashboard.fraud_status %}
+    <div class="fraud-box fraud-{{ fraud.risk_level }}" id="fraudBox">
+      <div>
+        <strong>Phát hiện gian lận và bất thường (Fraud Detection • Time-Range 10s):</strong>
+        <span id="fraudMessage">{{ fraud.message }}</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="mono" style="font-size:0.72rem;" id="fraudLatency">Scan: {{ fraud.latency_ms }} ms</span>
+        <span class="fraud-badge" id="fraudBadge">{{ fraud.label }}</span>
+      </div>
+    </div>
+
+    <div class="latest-rowkey-box" id="latestRowKeyBox">
+      <span class="label">Giải phẫu Row Key vừa sinh ra ([reversed_user_id]#[user_id]#[reverse_timestamp])</span>
+      {% if dashboard.recent.events %}
+        {% set first_ev = dashboard.recent.events[0] %}
+        <span class="key-value" id="latestRowKey">{{ first_ev.row_key }}</span>
+        <div class="rk-anatomy" id="rkAnatomy">
+          <span class="rk-part rk-salt">Salt đảo ngược: {{ first_ev.row_key_parts.reversed_uid }}</span>
+          <span class="rk-part rk-uid">User ID: {{ first_ev.row_key_parts.user_id }}</span>
+          <span class="rk-part rk-ts">Reverse TS: {{ first_ev.row_key_parts.reverse_ts }}</span>
+        </div>
+      {% else %}
+        <span class="key-value" id="latestRowKey">Hãy thực hiện thao tác trên giao diện shop để sinh Row Key</span>
+        <div class="rk-anatomy" id="rkAnatomy"></div>
+      {% endif %}
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Thời gian và Row Key</th>
+            <th>cf_event</th>
+            <th>cf_product</th>
+            <th>cf_device</th>
+          </tr>
+        </thead>
+        <tbody id="clickstreamBody">
+          {% for ev in dashboard.recent.events %}
+          <tr>
+            <td>
+              <div><strong>{{ ev.time_display }}</strong></div>
+              <div class="mono" style="color: #0369a1;">{{ ev.row_key }}</div>
+            </td>
+            <td>
+              <span class="ev-badge ev-{{ ev.cf_event.event_type }}">{{ ev.cf_event.event_type }}</span>
+              <div>session: <span class="mono">{{ ev.cf_event.session_id }}</span></div>
+              <div>url: <span class="mono">{{ ev.cf_event.page_url }}</span></div>
+            </td>
+            <td>
+              {% if ev.cf_product.product_name %}
+                <div><strong>{{ ev.cf_product.product_name }}</strong> ({{ ev.cf_product.product_id }})</div>
+                <div>Danh mục: {{ ev.cf_product.category }}</div>
+                <div>Giá: {{ ev.cf_product.price }}</div>
+              {% endif %}
+              {% if ev.cf_product.search_keyword %}
+                <div>Từ khóa: <strong>{{ ev.cf_product.search_keyword }}</strong></div>
+              {% endif %}
+            </td>
+            <td>
+              <div>{{ ev.cf_device.device_type }}</div>
+              <div>OS: {{ ev.cf_device.os }}</div>
+              <div>Vùng: {{ ev.cf_device.ip_region }}</div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4" style="text-align: center; color: var(--muted); padding: 20px;">
+              Chưa có sự kiện nào cho người dùng này.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="rec-section">
+      <div class="panel-header" style="margin-bottom: 8px;">
+        <h3 class="panel-title" style="font-size: 0.98rem;">Sản phẩm gợi ý theo trọng số hành vi</h3>
+        <span class="cat-tag" id="recCategoryBadge">{{ dashboard.recommendations.target_category }}</span>
+      </div>
+      <div class="rec-reason" id="recReason">{{ dashboard.recommendations.reason }}</div>
+      <div class="rec-grid" id="recGrid">
+        {% for rp in dashboard.recommendations.recommendations %}
+        <div class="rec-card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span class="cat-tag">{{ rp.category }}</span>
+            <strong style="color: var(--danger); font-size:0.86rem;">{{ "{:,.0f}".format(rp.price).replace(",", ".") }} VNĐ</strong>
+          </div>
+          <strong style="font-size:0.88rem;">{{ rp.product_name }}</strong>
+          <div style="display:flex; gap:6px;">
+            <button type="button" class="btn btn-outline" style="flex:1; padding:6px 8px; font-size:0.78rem;" onclick="viewProduct('{{ rp.product_id }}')">Xem</button>
+            <button type="button" class="btn btn-primary" style="flex:1; padding:6px 8px; font-size:0.78rem;" onclick="addToCart('{{ rp.product_id }}')">Thêm giỏ</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="modal-backdrop" id="detailModal" onclick="if(event.target===this) closeModal()">
+  <div class="modal-card">
+    <div style="display:flex; justify-content:space-between; align-items:start; gap:10px;">
+      <div>
+        <span class="cat-tag" id="modalCategory"></span>
+        <h3 id="modalTitle" style="margin:6px 0 4px;"></h3>
+      </div>
+      <button type="button" class="btn btn-outline" onclick="closeModal()">Đóng</button>
+    </div>
+    <div id="modalRating" class="rating-line" style="margin: 4px 0;"></div>
+    <p id="modalSpecs" style="color: var(--muted); font-size:0.86rem; margin:6px 0;"></p>
+    <p id="modalDesc" style="font-size:0.9rem; margin:10px 0;"></p>
+    <div id="modalPrice" style="font-size:1.18rem; font-weight:800; color:var(--danger); margin-bottom:14px;"></div>
+    <div style="display:flex; gap:8px;">
+      <button type="button" class="btn btn-primary" style="flex:1;" id="modalAddBtn">Thêm vào giỏ hàng</button>
+      <button type="button" class="btn btn-success" style="flex:1;" id="modalBuyBtn">Mua ngay</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="receiptModal" onclick="if(event.target===this) closeReceiptModal()">
+  <div class="modal-card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span class="badge-tag">Thanh toán thành công • Đã lưu Bigtable</span>
+      <button type="button" class="btn btn-outline" onclick="closeReceiptModal()">Đóng</button>
+    </div>
+    <h3 style="margin:10px 0 4px;">Biên nhận đơn hàng và Sự kiện Clickstream</h3>
+    <p id="receiptSummary" style="font-size:0.88rem; color:var(--muted); margin:4px 0 10px;"></p>
+    <div id="receiptTotal" style="font-size:1.2rem; font-weight:800; color:var(--accent); margin-bottom:12px;"></div>
+    <div class="latest-rowkey-box" style="margin-bottom:0;">
+      <span class="label">Row Key giao dịch purchase_success vừa ghi vào Bigtable</span>
+      <span class="key-value" id="receiptRowKey"></span>
+      <div style="font-size:0.75rem; color:#94a3b8;" id="receiptLatency"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const PRODUCTS_LIST = {{ products|tojson }};
+  window.SHOP_STATE = {
+    currentUser: {{ selected_user|tojson }},
+    productMap: Object.fromEntries(PRODUCTS_LIST.map((p) => [p.product_id, p])),
+    userProfiles: {{ user_profiles_map|tojson }},
+  };
+</script>
+<script src="{{ url_for('static', filename='js/shop.js') }}"></script>
+{% endblock %}

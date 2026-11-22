@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Quản trị Clickstream và Bigtable Analytics{% endblock %}
+
+{% block content %}
+<div class="kpi-grid-4">
+  <div class="metric-card">
+    <div class="metric-label">Mẫu sự kiện đã phân tích</div>
+    <div class="metric-value" id="kpiSampled">{{ overview.sampled_rows }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Số User định danh trong mẫu</div>
+    <div class="metric-value" id="kpiUsers">{{ overview.unique_users }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Tỷ lệ Thêm giỏ / Xem SP</div>
+    <div class="metric-value" id="kpiCartRate">{{ overview.funnel.cart_rate_pct }}%</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Tỷ lệ Mua hàng / Xem SP</div>
+    <div class="metric-value" id="kpiPurchaseRate">{{ overview.funnel.purchase_rate_pct }}%</div>
+  </div>
+</div>
+
+<div class="analytics-grid">
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Phễu chuyển đổi hành vi và phân bổ tải Tablet</h2>
+        <div class="panel-subtitle">Độ trễ quét mẫu: <strong id="overviewLatency">{{ overview.read_latency_ms }} ms</strong></div>
+      </div>
+      <button type="button" class="btn btn-outline" onclick="refreshAnalytics()">Cập nhật số liệu</button>
+    </div>
+
+    <h3 style="font-size:0.88rem; margin:0 0 8px;">Phễu hành vi Clickstream</h3>
+    <div id="funnelBars"></div>
+
+    <h3 style="font-size:0.88rem; margin:14px 0 8px;">Phân bổ khóa trên 4 vùng Tablet (Minh họa chống Hotspotting)</h3>
+    <div id="tabletBars"></div>
+
+    <h3 style="font-size:0.88rem; margin:14px 0 8px;">Phân bố thiết bị và khu vực IP</h3>
+    <div id="deviceBars"></div>
+    <div id="regionBars" style="margin-top:8px;"></div>
+
+    <h3 style="font-size:0.88rem; margin:14px 0 8px;">Từ khóa tìm kiếm nổi bật</h3>
+    <div id="keywordList"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Bảng tổng hợp product_metrics (ReadModifyWrite)</h2>
+        <div class="panel-subtitle">Đọc trực tiếp bộ đếm nguyên tử theo ngày mà không cần Full Scan bảng Clickstream (<strong id="metricsLatency">{{ daily_metrics.latency_ms }} ms</strong>)</div>
+      </div>
+    </div>
+
+    <div class="table-wrap" style="max-height: 390px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Sản phẩm</th>
+            <th>Lượt xem</th>
+            <th>Thêm giỏ</th>
+            <th>Thanh toán</th>
+            <th>Doanh thu</th>
+            <th>Tỷ lệ mua</th>
+          </tr>
+        </thead>
+        <tbody id="productMetricsBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Live Traffic Simulator (Giả lập tải thời gian thực)</h2>
+        <div class="panel-subtitle">Bắn luồng sự kiện đa user lên Bigtable để quan sát Monitoring trên Cloud Console</div>
+      </div>
+      <span class="ev-badge ev-search_keyword" id="simStatusBadge">Đang dừng</span>
+    </div>
+
+    <div class="filter-toolbar">
+      <label for="simRateInput" style="font-size:0.84rem; font-weight:600;">Tốc độ (sự kiện/giây):</label>
+      <input type="number" id="simRateInput" class="filter-select" value="5" min="1" max="25" style="width:80px;" />
+      <button type="button" class="btn btn-success" id="simStartBtn" onclick="startSimulator()">Bắt đầu giả lập</button>
+      <button type="button" class="btn btn-danger" id="simStopBtn" onclick="stopSimulator()" disabled>Dừng giả lập</button>
+    </div>
+
+    <div class="metrics-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+      <div class="metric-card">
+        <div class="metric-label">Số sự kiện đã phát sinh</div>
+        <div class="metric-value" id="simCount">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Row Key vừa ghi</div>
+        <div class="metric-value mono" id="simLastKey">Chưa có</div>
+      </div>
+    </div>
+
+    <div style="border-top: 1px solid var(--border); padding-top: 14px; margin-top: 8px;">
+      <h3 style="font-size:0.95rem; margin:0 0 8px;">Đo trực tiếp Prefix Scan so với Full Table Scan</h3>
+      <div class="filter-toolbar">
+        <select id="benchUserSelect" class="filter-select">
+          {% for uid in users %}
+          <option value="{{ uid }}">{{ uid }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" class="btn btn-primary" onclick="runScanBenchmark()">Chạy so sánh Scan</button>
+      </div>
+      <div id="scanBenchResult" style="font-size:0.84rem; color:var(--muted);">
+        Bấm nút để đo chênh lệch thời gian truy xuất 10 hành vi của một user.
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Đối chiếu truy vấn Google Cloud Bigtable Studio</h2>
+        <div class="panel-subtitle">Sao chép nhanh các câu lệnh GoogleSQL chuẩn để chạy kiểm chứng trên Bigtable Console</div>
+      </div>
+    </div>
+
+    {% for item in sql_snippets %}
+    <div class="sql-card">
+      <div class="sql-card-header">
+        <span style="font-size:0.8rem; font-weight:700; color:#e2e8f0;">{{ item.title }}</span>
+        <button type="button" class="copy-sql-btn" onclick="copySqlText(this)">Sao chép SQL</button>
+      </div>
+      <pre>{{ item.sql }}</pre>
+    </div>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.ANALYTICS_INIT = {
+    overview: {{ overview|tojson }},
+    daily_metrics: {{ daily_metrics|tojson }},
+  };
+</script>
+<script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+{% endblock %}
